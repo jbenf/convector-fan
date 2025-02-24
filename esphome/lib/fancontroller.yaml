@@ -1,0 +1,136 @@
+esphome:
+  name: "${name}"
+  friendly_name: "${name}"
+
+  on_boot:
+    - priority: 600
+      then:
+        - delay: 2s
+        - lambda: &update |
+            float level = id(fan_speed).state / 100.0;
+            //ESP_LOGD("custom", "level: %f, temperature: %f, on: %f, off: %f, temperature voltage: %f", level, id(temp_sensor).state, id(power_on_temperature).state, id(power_off_temperature).state, id(source_sensor).state);
+            if(id(source_sensor).state > 0.2) {
+              if(id(low_energy_mode).state) {
+                id(myWifi).disable();
+              } else {
+                id(myWifi).enable();
+              }
+                
+              if(id(temp_sensor).state < id(power_off_temperature).state) {
+                if(id(pwm_mode).state) {
+                  id(fan_pwm).set_level(0.0);
+                }
+                id(fan).set_level(0.0);
+              } else if(id(temp_sensor).state > id(power_on_temperature).state) {
+                if(id(pwm_mode).state) {
+                  id(fan_pwm).set_level(level);
+                  id(fan).set_level(level == 0.0 ? 0.0 : 1.0);
+                } else {
+                  id(fan).set_level(level);
+                }
+              }
+            } else {
+              id(myWifi).enable();
+              id(fan).set_level(level);
+            }
+
+
+esp8266:
+  board: esp01_1m
+  restore_from_flash: True
+
+# Enable logging
+logger:
+
+
+interval:
+  - interval: ${update_interval}
+    then:
+      - lambda: *update
+
+sensor:
+  - platform: ntc
+    sensor: resistance_sensor
+    name: Radiator Temp
+    id: temp_sensor
+    calibration: 
+      b_constant: 3950
+      reference_temperature: 25°C
+      reference_resistance: 100kOhm
+  - platform: resistance
+    id: resistance_sensor
+    sensor: source_sensor
+    configuration: DOWNSTREAM
+    resistor: 396kOhm
+    name: Resistance Sensor
+  - platform: adc
+    id: source_sensor
+    pin: A0
+    update_interval: ${update_interval}
+              
+output:
+  - platform: esp8266_pwm
+    pin: GPIO04
+    
+    frequency: ${pwm_freq}
+    id: fan_pwm
+  - platform: esp8266_pwm
+    pin: GPIO05
+    
+    frequency: 120 Hz
+    id: fan
+
+switch:
+  - platform: template
+    name: "PWM Mode"
+    id: "pwm_mode"
+    restore_mode: RESTORE_DEFAULT_OFF
+    optimistic: True
+  - platform: template
+    name: "Low Energy Mode"
+    id: "low_energy_mode"
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: True
+
+number:
+  - platform: template
+    name: "Power On Temperature"
+    id: "power_on_temperature"
+    step: 1
+    min_value: 0
+    max_value: 60
+    initial_value: 30
+    restore_value: True
+    mode: slider
+    optimistic: True
+  - platform: template
+    name: "Power Off Temperature"
+    id: "power_off_temperature"
+    step: 1
+    min_value: 0
+    max_value: 60
+    initial_value: 25
+    restore_value: True
+    mode: slider
+    optimistic: True
+  - platform: template
+    name: "Fan Speed"
+    id: "fan_speed"
+    step: 1
+    min_value: 0
+    max_value: 100
+    initial_value: 100
+    restore_value: True
+    mode: slider
+    optimistic: True
+    on_value: 
+      then:
+        - lambda: |
+            float level = id(fan_speed).state / 100.0;
+            if(id(pwm_mode).state) {
+              id(fan_pwm).set_level(level);
+              id(fan).set_level(level == 0.0 ? 0.0 : 1.0);
+            } else {
+              id(fan).set_level(level);
+            }
+            

@@ -1,0 +1,35 @@
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret encryption_key
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+wifi:
+  id: myWifi
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  domain: ".fritz.box"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Convector-Fan-Control"
+    password: !secret wifi_ap_password
+
+captive_portal:
+
+
+substitutions:
+  name: "convector-fan-control-01"
+  update_interval: 60s
+  pwm_freq: 5000 Hz
+
+
+  
+<<: !include lib/fancontroller.yaml
